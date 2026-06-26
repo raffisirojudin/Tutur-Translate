@@ -150,9 +150,14 @@ const HTML_PAGE = `<!DOCTYPE html>
     50% { opacity: 1; transform: scaleY(1.15); }
   }
 
-  .lang-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  select {
-    flex: 1;
+  .lang-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; position: relative; }
+  .custom-select { position: relative; flex: 1; }
+  .select-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     padding: 11px 12px;
     border-radius: 8px;
     border: 1.5px solid var(--border);
@@ -160,9 +165,44 @@ const HTML_PAGE = `<!DOCTYPE html>
     color: var(--text);
     font-family: 'Inter', sans-serif;
     font-size: 14px;
+    cursor: pointer;
   }
-  select.from { border-color: var(--from-color); }
-  select.to { border-color: var(--to-color); }
+  .custom-select.from .select-trigger { border-color: var(--from-color); }
+  .custom-select.to .select-trigger { border-color: var(--to-color); }
+  .chevron { color: var(--muted); font-size: 11px; transition: transform 0.15s ease; }
+  .custom-select.open .chevron { transform: rotate(180deg); }
+  .select-options {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 20;
+    display: none;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+  }
+  .custom-select.open .select-options { display: block; }
+  .select-options li {
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .custom-select.from .select-options li:hover,
+  .custom-select.from .select-options li.selected { background: rgba(255, 139, 107, 0.15); color: var(--from-color); }
+  .custom-select.to .select-options li:hover,
+  .custom-select.to .select-options li.selected { background: rgba(95, 212, 224, 0.15); color: var(--to-color); }
+  .select-options::-webkit-scrollbar { width: 6px; }
+  .select-options::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
   #swap-btn {
     flex-shrink: 0;
     width: 38px;
@@ -271,9 +311,21 @@ const HTML_PAGE = `<!DOCTYPE html>
     </svg>
 
     <div class="lang-row">
-      <select id="from-lang" class="from"></select>
+      <div class="custom-select from" id="from-select">
+        <button class="select-trigger" id="from-trigger" type="button">
+          <span id="from-value">Indonesia</span>
+          <span class="chevron">▾</span>
+        </button>
+        <ul class="select-options" id="from-options"></ul>
+      </div>
       <button id="swap-btn" type="button" title="Tukar bahasa">⇄</button>
-      <select id="to-lang" class="to"></select>
+      <div class="custom-select to" id="to-select">
+        <button class="select-trigger" id="to-trigger" type="button">
+          <span id="to-value">Inggris</span>
+          <span class="chevron">▾</span>
+        </button>
+        <ul class="select-options" id="to-options"></ul>
+      </div>
     </div>
 
     <div class="box from">
@@ -305,7 +357,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       "Prancis": "fr-FR",
       "Spanyol": "es-ES",
       "Jerman": "de-DE",
-      "Thailand": "th-TH",
+      "Thai": "th-TH",
       "Vietnam": "vi-VN"
     };
 
@@ -359,8 +411,6 @@ const HTML_PAGE = `<!DOCTYPE html>
     gateInput.addEventListener("keydown", function (e) { if (e.key === "Enter") tryLogin(); });
 
     // ---------- Penerjemah ----------
-    const fromSelect = document.getElementById("from-lang");
-    const toSelect = document.getElementById("to-lang");
     const swapBtn = document.getElementById("swap-btn");
     const inputText = document.getElementById("input-text");
     const outputText = document.getElementById("output-text");
@@ -370,24 +420,61 @@ const HTML_PAGE = `<!DOCTYPE html>
     const autoSpeakToggle = document.getElementById("auto-speak-toggle");
     let autoSpeak = false;
 
-    Object.keys(LANGUAGES).forEach(function (name) {
-      const opt1 = document.createElement("option");
-      opt1.value = name; opt1.textContent = name;
-      fromSelect.appendChild(opt1);
-      const opt2 = document.createElement("option");
-      opt2.value = name; opt2.textContent = name;
-      toSelect.appendChild(opt2);
+    // ---------- Dropdown custom (gantinya <select>, biar bisa diwarnai sesuai tema) ----------
+    function buildDropdown(prefix, defaultValue) {
+      const wrapper = document.getElementById(prefix + "-select");
+      const trigger = document.getElementById(prefix + "-trigger");
+      const optionsEl = document.getElementById(prefix + "-options");
+
+      Object.keys(LANGUAGES).forEach(function (name) {
+        const li = document.createElement("li");
+        li.textContent = name;
+        li.dataset.value = name;
+        if (name === defaultValue) li.classList.add("selected");
+        li.addEventListener("click", function () {
+          setDropdownValue(prefix, name);
+          wrapper.classList.remove("open");
+        });
+        optionsEl.appendChild(li);
+      });
+
+      trigger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        document.querySelectorAll(".custom-select.open").forEach(function (el) {
+          if (el !== wrapper) el.classList.remove("open");
+        });
+        wrapper.classList.toggle("open");
+      });
+    }
+
+    function setDropdownValue(prefix, name) {
+      document.getElementById(prefix + "-value").textContent = name;
+      document.querySelectorAll("#" + prefix + "-options li").forEach(function (li) {
+        li.classList.toggle("selected", li.dataset.value === name);
+      });
+    }
+
+    function getDropdownValue(prefix) {
+      return document.getElementById(prefix + "-value").textContent;
+    }
+
+    document.addEventListener("click", function () {
+      document.querySelectorAll(".custom-select.open").forEach(function (el) {
+        el.classList.remove("open");
+      });
     });
-    fromSelect.value = "Indonesia";
-    toSelect.value = "Inggris";
+
+    buildDropdown("from", "Indonesia");
+    buildDropdown("to", "Inggris");
 
     swapBtn.addEventListener("click", function () {
-      const f = fromSelect.value;
-      fromSelect.value = toSelect.value;
-      toSelect.value = f;
-      const t = inputText.value;
+      const f = getDropdownValue("from");
+      const t = getDropdownValue("to");
+      setDropdownValue("from", t);
+      setDropdownValue("to", f);
+      const inputVal = inputText.value;
       inputText.value = outputText.value;
-      outputText.value = t;
+      outputText.value = inputVal;
     });
 
     let debounceTimer = null;
@@ -407,8 +494,8 @@ const HTML_PAGE = `<!DOCTYPE html>
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             text: text,
-            from: fromSelect.value,
-            to: toSelect.value,
+            from: getDropdownValue("from"),
+            to: getDropdownValue("to"),
             password: appPassword,
           }),
         });
@@ -454,7 +541,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 
       micBtn.addEventListener("click", function () {
         if (isListening) { recognizer.stop(); return; }
-        recognizer.lang = LANGUAGES[fromSelect.value] || "id-ID";
+        recognizer.lang = LANGUAGES[getDropdownValue("from")] || "id-ID";
         recognizer.start();
         isListening = true;
         micBtn.classList.add("listening");
@@ -469,7 +556,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       if (!SpeechSynthesisAvailable || !outputText.value) return;
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(outputText.value);
-      utterance.lang = LANGUAGES[toSelect.value] || "en-US";
+      utterance.lang = LANGUAGES[getDropdownValue("to")] || "en-US";
       window.speechSynthesis.speak(utterance);
     }
 
