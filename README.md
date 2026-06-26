@@ -10,10 +10,15 @@ Model yang dipakai: `llama-3.1-8b-instant` -- model open-source dari Meta (Llama
 
 ## Fitur
 
-- ⌨️ **Ketik & otomatis diterjemahkan** -- berhenti ngetik sebentar, terjemahan langsung muncul (tanpa perlu klik tombol)
-- 🎤 **Input suara** -- tekan mik, bicara, otomatis jadi teks lalu diterjemahkan (pakai Web Speech API bawaan browser, gratis, tidak butuh API tambahan)
-- 🔊 **Baca hasil terjemahan** -- tombol dengarkan, atau aktifkan toggle biar otomatis dibacakan tiap kali ada hasil baru
+- ⌨️ **Ketik & otomatis diterjemahkan** -- berhenti ngetik sebentar (atau tekan Enter), terjemahan langsung muncul
+- 🎤 **Input suara** -- tekan mik, bicara, otomatis jadi teks lalu diterjemahkan (Web Speech API bawaan browser, gratis)
+- 🔊 **Baca hasil terjemahan** -- tombol dengarkan, atau aktifkan toggle biar otomatis dibacakan
+- 🔤 **Romanisasi otomatis** -- kalau bahasa tujuan pakai aksara sendiri (Mandarin, Jepang, Korea, Arab, Thai), hasilnya disertai romanisasi Latin (pinyin/romaji/dst), tampil kecil di bawah hasil utama
+- 📋 **Salin hasil** -- satu klik, hasil terjemahan tersalin ke clipboard
+- 🔢 **Penghitung karakter** -- info panjang teks yang diketik
 - ⇄ **Tukar bahasa** -- satu klik buat membalik arah terjemahan
+- 🎨 **Dropdown custom** -- bukan dropdown bawaan browser, jadi bisa diwarnai sesuai tema (oranye = bahasa asal, cyan = bahasa tujuan)
+- ♿ **Aksesibilitas** -- semua tombol ikon punya aria-label buat pembaca layar
 - 🔒 **Proteksi password (opsional)**
 
 ## Catatan soal browser
