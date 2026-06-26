@@ -49,18 +49,26 @@ async function handleTranslate(request, env) {
       return jsonResponse({ error: "Teks kosong." }, 400);
     }
 
-    const translated = await callGroqTranslate(text, from, to, env.GROQ_API_KEY);
-    return jsonResponse({ translated });
+    const result = await callGroqTranslate(text, from, to, env.GROQ_API_KEY);
+    return jsonResponse({ translated: result.translated, romanized: result.romanized });
   } catch (err) {
     return jsonResponse({ error: err.message }, 500);
   }
 }
 
+const NON_LATIN_SCRIPTS = new Set(["Mandarin", "Jepang", "Korea", "Arab", "Thai"]);
+
 async function callGroqTranslate(text, from, to, apiKey) {
-  const systemPrompt =
-    `Kamu adalah penerjemah profesional. Terjemahkan teks dari Bahasa ${from} ke Bahasa ${to}. ` +
-    `PENTING: jawab HANYA dengan hasil terjemahannya saja, tanpa penjelasan, tanpa tanda kutip, ` +
-    `tanpa komentar tambahan apapun.`;
+  const needsRomanization = NON_LATIN_SCRIPTS.has(to);
+
+  const systemPrompt = needsRomanization
+    ? `Kamu adalah penerjemah profesional. Terjemahkan teks dari Bahasa ${from} ke Bahasa ${to}. ` +
+      `Jawab dalam format PERSIS dua baris berikut, tanpa tambahan apapun:\n` +
+      `[hasil terjemahan dalam aksara asli]\n` +
+      `ROMANISASI: [transliterasi/romanisasi Latin dari hasil terjemahan itu]`
+    : `Kamu adalah penerjemah profesional. Terjemahkan teks dari Bahasa ${from} ke Bahasa ${to}. ` +
+      `PENTING: jawab HANYA dengan hasil terjemahannya saja, tanpa penjelasan, tanpa tanda kutip, ` +
+      `tanpa komentar tambahan apapun.`;
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -85,8 +93,20 @@ async function callGroqTranslate(text, from, to, apiKey) {
   }
 
   const data = await response.json();
-  const result = data?.choices?.[0]?.message?.content;
-  return result ? result.trim() : "Maaf, gagal menerjemahkan teks itu.";
+  const rawResult = data?.choices?.[0]?.message?.content?.trim();
+
+  if (!rawResult) {
+    return { translated: "Maaf, gagal menerjemahkan teks itu.", romanized: null };
+  }
+
+  if (needsRomanization) {
+    const match = rawResult.match(/^([\s\S]*?)\n\s*ROMANISASI:\s*([\s\S]*)$/i);
+    if (match) {
+      return { translated: match[1].trim(), romanized: match[2].trim() };
+    }
+  }
+
+  return { translated: rawResult, romanized: null };
 }
 
 function friendlyErrorMessage(status, rawErrorText) {
@@ -115,7 +135,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Tutur Translate</title>
+<title>Tutur</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500&display=swap');
 
@@ -253,6 +273,12 @@ const HTML_PAGE = `<!DOCTYPE html>
     color: var(--muted);
     margin: -8px 2px 10px;
   }
+  .romanized {
+    margin: 0 50px 14px 14px;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--muted);
+  }
   .copy-toast {
     position: absolute;
     bottom: 12px;
@@ -316,7 +342,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 
   <div class="app" id="app" style="display:none;">
     <header>
-      <h1>Tutur Translate</h1>
+      <h1>Tutur</h1>
       <p>Penerjemah instan -- ketik atau bicara, langsung diterjemahkan.</p>
     </header>
 
@@ -359,6 +385,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 
     <div class="box to">
       <textarea id="output-text" placeholder="Hasil terjemahan muncul di sini..." readonly aria-label="Hasil terjemahan"></textarea>
+      <p class="romanized" id="romanized-text"></p>
       <button class="icon-btn" id="speak-btn" type="button" title="Dengarkan" aria-label="Dengarkan hasil terjemahan">🔊</button>
       <button class="icon-btn secondary" id="copy-btn" type="button" title="Salin" aria-label="Salin hasil terjemahan">📋</button>
       <span class="copy-toast" id="copy-toast">Tersalin!</span>
@@ -443,6 +470,7 @@ const HTML_PAGE = `<!DOCTYPE html>
     const copyBtn = document.getElementById("copy-btn");
     const copyToast = document.getElementById("copy-toast");
     const charCount = document.getElementById("char-count");
+    const romanizedEl = document.getElementById("romanized-text");
     const statusEl = document.getElementById("status");
     const autoSpeakToggle = document.getElementById("auto-speak-toggle");
     let autoSpeak = false;
@@ -502,6 +530,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       const inputVal = inputText.value;
       inputText.value = outputText.value;
       outputText.value = inputVal;
+      romanizedEl.textContent = "";
     });
 
     let debounceTimer = null;
@@ -521,7 +550,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 
     async function translateNow() {
       const text = inputText.value.trim();
-      if (!text) { outputText.value = ""; return; }
+      if (!text) { outputText.value = ""; romanizedEl.textContent = ""; return; }
 
       statusEl.textContent = "Menerjemahkan...";
       try {
@@ -540,6 +569,7 @@ const HTML_PAGE = `<!DOCTYPE html>
           statusEl.textContent = data.error;
         } else {
           outputText.value = data.translated;
+          romanizedEl.textContent = data.romanized || "";
           statusEl.textContent = "";
           if (autoSpeak) speakResult();
         }
