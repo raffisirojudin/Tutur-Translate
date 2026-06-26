@@ -246,6 +246,27 @@ const HTML_PAGE = `<!DOCTYPE html>
     cursor: pointer;
     font-size: 15px;
   }
+  .icon-btn.secondary { top: auto; bottom: 12px; }
+  .char-count {
+    text-align: right;
+    font-size: 12px;
+    color: var(--muted);
+    margin: -8px 2px 10px;
+  }
+  .copy-toast {
+    position: absolute;
+    bottom: 12px;
+    right: 56px;
+    background: var(--border);
+    color: var(--text);
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  .copy-toast.show { opacity: 1; }
   .icon-btn:hover { filter: brightness(1.2); }
   .icon-btn.listening { background: var(--from-color); animation: pulse 1s infinite; }
   @keyframes pulse {
@@ -312,32 +333,35 @@ const HTML_PAGE = `<!DOCTYPE html>
 
     <div class="lang-row">
       <div class="custom-select from" id="from-select">
-        <button class="select-trigger" id="from-trigger" type="button">
+        <button class="select-trigger" id="from-trigger" type="button" aria-label="Pilih bahasa asal" aria-haspopup="listbox">
           <span id="from-value">Indonesia</span>
           <span class="chevron">▾</span>
         </button>
-        <ul class="select-options" id="from-options"></ul>
+        <ul class="select-options" id="from-options" role="listbox"></ul>
       </div>
-      <button id="swap-btn" type="button" title="Tukar bahasa">⇄</button>
+      <button id="swap-btn" type="button" title="Tukar bahasa" aria-label="Tukar arah bahasa">⇄</button>
       <div class="custom-select to" id="to-select">
-        <button class="select-trigger" id="to-trigger" type="button">
+        <button class="select-trigger" id="to-trigger" type="button" aria-label="Pilih bahasa tujuan" aria-haspopup="listbox">
           <span id="to-value">Inggris</span>
           <span class="chevron">▾</span>
         </button>
-        <ul class="select-options" id="to-options"></ul>
+        <ul class="select-options" id="to-options" role="listbox"></ul>
       </div>
     </div>
 
     <div class="box from">
-      <textarea id="input-text" placeholder="Ketik atau tekan mik untuk bicara..."></textarea>
-      <button class="icon-btn" id="mic-btn" type="button" title="Bicara">🎤</button>
+      <textarea id="input-text" placeholder="Ketik atau tekan mik untuk bicara..." aria-label="Teks yang ingin diterjemahkan"></textarea>
+      <button class="icon-btn" id="mic-btn" type="button" title="Bicara" aria-label="Bicara untuk mengisi teks">🎤</button>
     </div>
+    <p class="char-count" id="char-count">0 karakter</p>
 
-    <p class="status" id="status"></p>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
 
     <div class="box to">
-      <textarea id="output-text" placeholder="Hasil terjemahan muncul di sini..." readonly></textarea>
-      <button class="icon-btn" id="speak-btn" type="button" title="Dengarkan">🔊</button>
+      <textarea id="output-text" placeholder="Hasil terjemahan muncul di sini..." readonly aria-label="Hasil terjemahan"></textarea>
+      <button class="icon-btn" id="speak-btn" type="button" title="Dengarkan" aria-label="Dengarkan hasil terjemahan">🔊</button>
+      <button class="icon-btn secondary" id="copy-btn" type="button" title="Salin" aria-label="Salin hasil terjemahan">📋</button>
+      <span class="copy-toast" id="copy-toast">Tersalin!</span>
     </div>
 
     <label class="auto-speak">
@@ -416,6 +440,9 @@ const HTML_PAGE = `<!DOCTYPE html>
     const outputText = document.getElementById("output-text");
     const micBtn = document.getElementById("mic-btn");
     const speakBtn = document.getElementById("speak-btn");
+    const copyBtn = document.getElementById("copy-btn");
+    const copyToast = document.getElementById("copy-toast");
+    const charCount = document.getElementById("char-count");
     const statusEl = document.getElementById("status");
     const autoSpeakToggle = document.getElementById("auto-speak-toggle");
     let autoSpeak = false;
@@ -479,8 +506,17 @@ const HTML_PAGE = `<!DOCTYPE html>
 
     let debounceTimer = null;
     inputText.addEventListener("input", function () {
+      charCount.textContent = inputText.value.length + " karakter";
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(translateNow, 700);
+    });
+
+    inputText.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        clearTimeout(debounceTimer);
+        translateNow();
+      }
     });
 
     async function translateNow() {
@@ -569,6 +605,17 @@ const HTML_PAGE = `<!DOCTYPE html>
         autoSpeak = autoSpeakToggle.checked;
       });
     }
+
+    copyBtn.addEventListener("click", async function () {
+      if (!outputText.value) return;
+      try {
+        await navigator.clipboard.writeText(outputText.value);
+        copyToast.classList.add("show");
+        setTimeout(function () { copyToast.classList.remove("show"); }, 1500);
+      } catch (err) {
+        statusEl.textContent = "Gagal menyalin: " + err.message;
+      }
+    });
   </script>
 </body>
 </html>`;
